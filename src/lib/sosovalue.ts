@@ -1,4 +1,4 @@
-const BASE_URL = "https://open-api.sosovalue.com";
+const BASE_URL = "https://openapi.sosovalue.com/api";
 
 export interface NewsItem {
   newsId: string;
