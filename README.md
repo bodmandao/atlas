@@ -147,41 +147,6 @@ npm run start        # production server
 
 ---
 
-## Design System
-
-The entire UI is built on a custom design system defined in `src/app/globals.css` — no component library. Key principles:
-
-**Color palette**
-- `--bg-0 … --bg-3` — four surface depths from near-black to card level
-- `--cyan: #00d9ff` — primary brand accent (electric cyan)
-- `--amber: #d4a841` — secondary accent
-- `--green: #00e676` / `--red: #ff4444` — up/down indicators
-- `--violet: #7c3aed` — AI / secondary highlight
-
-**Glass system**
-- `.glass` — primary panel with backdrop blur, rim lighting, and depth shadow
-- `.glass-elevated` — stronger opacity for modals and overlays
-- `.glass-inset` — sunken inset panel
-- `.glass-row` — interactive list row with cyan hover state
-
-**Animated border**
-- `.glow-border` — CSS `@property --rot` + `conic-gradient` creates a rotating cyan/violet gradient border with no JavaScript
-- `.border-gradient` — static gradient border using the mask technique for cheaper static use cases
-
-**Typography**
-- `.text-display` — hero heading (`clamp(2.8rem, 6vw, 5.5rem)`, weight 900)
-- `.num-xl` / `.num-lg` — tabular-numeric metric values
-- `.label-caps` — 10px uppercase tracking label
-- `.grad-cyan` / `.grad-amber` — gradient text fill
-
-**Components**
-- `.btn .btn-cyan` / `.btn-outline` / `.btn-ghost-sm` — button variants
-- `.badge .badge-cyan/amber/violet/green/red` — status pills
-- `.field` — form input with cyan focus ring
-- `.metric-card` — stat card with animated top-line highlight on hover
-- `.live-dot` — pulsing green dot for live data indicators
-
----
 
 ## Data Flow
 
