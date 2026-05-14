@@ -82,35 +82,6 @@ atlas/
 
 ---
 
-## API Integrations
-
-### SoSoValue API
-
-Base URL: `https://open-api.sosovalue.com`
-
-| Endpoint | Used For |
-|---|---|
-| `GET /v1/news/list` | Market news feed on dashboard and signals page |
-| `GET /etfs/summary-history?type=BTC&limit=30` | BTC ETF daily net inflow chart (30 days) |
-| `GET /v1/coins/market-data` | Token prices for the builder token universe |
-| `GET /v1/indexes/list` | SSI sector indexes (DeFi, L1, L2, AI, RWA) |
-
-Authentication: `Authorization: Bearer <SOSOVALUE_API_KEY>` header.
-
-All four calls have **mock fallbacks** — if the API key is absent or the call fails, realistic mock data is returned so the UI remains fully functional for demos.
-
-### SoDEX API
-
-Base URL: `https://sodex.com/api`
-
-| Endpoint | Used For |
-|---|---|
-| `GET /v1/markets` | Available trading pairs |
-| `GET /v1/orderbook/:market` | Live orderbook for slippage estimation |
-
-Execution uses IOC (Immediate-Or-Cancel) limit orders. The `estimateSlippage()` function in `src/lib/sodex.ts` walks the orderbook to compute per-leg expected price and slippage in basis points.
-
-Wave 1 execution runs on **testnet** — no real funds required for the demo.
 
 ### Claude AI (`POST /api/build-index`)
 
@@ -147,7 +118,7 @@ The model is instructed to cite specific data signals from the live context in e
 ### Install
 
 ```bash
-git clone <repo>
+git clone https://github.com/bodmandao/atlas
 cd atlas
 npm install
 ```
@@ -157,8 +128,8 @@ npm install
 Create `.env.local` in the project root:
 
 ```env
-SOSOVALUE_API_KEY=your_sosovalue_api_key_here
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
+SOSOVALUE_API_KEY=sosovalue_api_key
+ANTHROPIC_API_KEY=anthropic_api_key
 ```
 
 - **SoSoValue API key** — apply at https://forms.gle/2nuJT2qNbUQsyyZy8
