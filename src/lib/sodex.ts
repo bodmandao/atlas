@@ -27,10 +27,10 @@ export interface SlippageEstimate {
   priceImpact: number;
 }
 
-const SODEX_BASE = "https://sodex.com/api";
+const SODEX_TESTNET = "https://testnet-gw.sodex.dev/api/v1/spot";
 
 async function sodexRequest<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const url = new URL(`${SODEX_BASE}${path}`);
+  const url = new URL(`${SODEX_TESTNET}${path}`);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
   const res = await fetch(url.toString(), {
@@ -44,7 +44,8 @@ async function sodexRequest<T>(path: string, params?: Record<string, string>): P
 
 export async function getMarkets(): Promise<Market[]> {
   try {
-    return await sodexRequest<Market[]>("/v1/markets");
+    const data = await sodexRequest<{ data: Market[] }>("/market/symbols");
+    return data.data ?? [];
   } catch {
     return getMockMarkets();
   }
@@ -52,7 +53,8 @@ export async function getMarkets(): Promise<Market[]> {
 
 export async function getOrderbook(market: string): Promise<Orderbook> {
   try {
-    return await sodexRequest<Orderbook>(`/v1/orderbook/${market}`);
+    const data = await sodexRequest<{ data: Orderbook }>(`/market/depth/${market}`);
+    return data.data ?? getMockOrderbook();
   } catch {
     return getMockOrderbook();
   }
