@@ -261,3 +261,18 @@ Server-rendered pages use Next.js ISR to keep data fresh without full SSR costs:
 
 ---
 
+## Hackathon Context
+
+Built for the **SoSoValue Hackathon — Wave 1 (May 1–12, 2026)**.
+
+The project addresses the **"index publisher"** use case called out directly in the hackathon brief. Analysis of 56+ existing submissions showed the vast majority were trading signal bots or simple price dashboards. ATLAS is differentiated by:
+
+- Full AI-driven portfolio construction grounded in live SoSoValue institutional data
+- End-to-end execution via SoDEX, not just signals
+- Marketplace where indexes can be published and copy-executed by others
+- Risk control bonus criterion addressed via the mandatory `ConfirmationGate` component before any on-chain execution
+
+**Wave timeline:**
+- Wave 1: May 1–12 — concept + prototype ✓
+- Wave 2: May 18–29 — core features + live API integration
+- Wave 3: Jun 4–15 — completion + demo day
