@@ -129,7 +129,10 @@ Construct the optimal thematic index basket based on this thesis and data.`;
       dataSignals: parsed.dataSignals,
     };
 
-    return NextResponse.json({ proposal });
+    const key = process.env.SOSOVALUE_API_KEY ?? "";
+    const dataSource = key.length > 10 && !key.includes("your_") ? "live" : "mock";
+
+    return NextResponse.json({ proposal, dataSource });
   } catch (err) {
     console.error("[build-index]", err);
     return NextResponse.json(
