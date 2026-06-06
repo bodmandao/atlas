@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { IndexProposal, IndexToken } from "@/lib/types";
 import { formatPercent } from "@/lib/utils";
+import { BacktestChart } from "@/components/BacktestChart";
+import { RadarChart } from "@/components/RadarChart";
 
 const THESIS_EXAMPLES = [
   "AI infrastructure tokens with strong institutional ETF inflows and positive momentum",
@@ -405,6 +407,10 @@ export default function BuilderPage() {
           </div>
 
           <WeightChart tokens={proposal.tokens} />
+
+          <BacktestChart tokens={proposal.tokens} />
+
+          <RadarChart proposal={proposal} />
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button onClick={() => { setStep("input"); setProposal(null); setDataSource(null); }}
