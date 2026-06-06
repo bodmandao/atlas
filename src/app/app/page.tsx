@@ -21,6 +21,9 @@ export default async function DashboardPage() {
     ? ((latest.totalNetInflow - prev.totalNetInflow) / Math.abs(prev.totalNetInflow || 1)) * 100
     : 0;
 
+  const sosoKey = process.env.SOSOVALUE_API_KEY ?? "";
+  const dataSource = sosoKey.length > 10 && !sosoKey.includes("your_") ? "live" : "mock";
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       {/* Welcome banner */}
@@ -32,9 +35,20 @@ export default async function DashboardPage() {
           />
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-black mb-1" style={{ color: "var(--t-1)" }}>
-                Welcome to ATLAS
-              </h1>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-xl font-black" style={{ color: "var(--t-1)" }}>
+                  Welcome to ATLAS
+                </h1>
+                {dataSource === "live" ? (
+                  <span className="badge badge-green">
+                    <span className="live-dot" style={{ width: 5, height: 5 }} /> LIVE DATA
+                  </span>
+                ) : (
+                  <span className="badge badge-amber" title="Connect a valid SoSoValue API key to switch to live data">
+                    DEMO MODE
+                  </span>
+                )}
+              </div>
               <p className="text-sm" style={{ color: "var(--t-2)" }}>
                 Build thematic on-chain indexes powered by SoSoValue institutional data
               </p>
