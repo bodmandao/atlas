@@ -1,26 +1,53 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   ArrowRight, Zap, Globe, Brain, Shield, BarChart3,
   TrendingUp, Activity, Layers, ChevronRight
 } from "lucide-react";
 
-const TICKER_ITEMS = [
-  { s:"BTC", p:"$97,500", c:"+2.31%", up:true },
-  { s:"ETH", p:"$3,650",  c:"+1.82%", up:true },
-  { s:"SOL", p:"$182.40", c:"+4.10%", up:true },
-  { s:"TAO", p:"$485.20", c:"+18.4%", up:true },
-  { s:"ARB", p:"$1.12",   c:"-1.24%", up:false },
-  { s:"INJ", p:"$32.40",  c:"+5.70%", up:true },
-  { s:"AAVE",p:"$285.00", c:"+2.10%", up:true },
-  { s:"LINK",p:"$18.50",  c:"+3.50%", up:true },
-  { s:"FET", p:"$2.80",   c:"+9.70%", up:true },
-  { s:"WLD", p:"$3.10",   c:"+6.80%", up:true },
+interface TickerItem { symbol: string; price: number; change: number; }
+interface SSIIndex {
+  indexId: string; indexName: string; indexCode: string;
+  indexValue: number; changePercent: number;
+  perf7d: number; perf30d: number;
+  tokens: string[]; weights: number[]; description?: string;
+}
+
+const TICKER_FALLBACK: TickerItem[] = [
+  { symbol: "SSI DeFi", price: 0, change: 0 },
+  { symbol: "SSI AI",   price: 0, change: 0 },
+  { symbol: "SSI L1",   price: 0, change: 0 },
+  { symbol: "SSI L2",   price: 0, change: 0 },
+  { symbol: "SSI RWA",  price: 0, change: 0 },
 ];
 
+const SECTOR_TAGS: Record<string, string[]> = {
+  ssiDeFi:   ["DeFi", "Institutional"],
+  ssiAI:     ["AI", "Infrastructure"],
+  ssiLayer1: ["Layer 1", "Smart Contracts"],
+  ssiLayer2: ["Layer 2", "Scaling"],
+  ssiRWA:    ["RWA", "Low Risk"],
+};
+
 export default function LandingPage() {
-  const tickers = [...TICKER_ITEMS, ...TICKER_ITEMS];
+  const [tickerItems, setTickerItems] = useState<TickerItem[]>(TICKER_FALLBACK);
+  const [ssiIndexes,  setSSIIndexes]  = useState<SSIIndex[]>([]);
+
+  useEffect(() => {
+    fetch("/api/ticker")
+      .then((r) => r.json())
+      .then((d) => { if (d.items?.length) setTickerItems(d.items); })
+      .catch(() => {});
+
+    fetch("/api/ssi-indexes")
+      .then((r) => r.json())
+      .then((d) => { if (d.indexes?.length) setSSIIndexes(d.indexes); })
+      .catch(() => {});
+  }, []);
+
+  const tickers = [...tickerItems, ...tickerItems];
 
   return (
     <div className="min-h-screen relative" style={{ backgroundColor: "var(--bg-1)" }}>
@@ -41,14 +68,24 @@ export default function LandingPage() {
       {/* ── Ticker ─────────────────────────────────────────────────── */}
       <div className="relative overflow-hidden py-2" style={{ zIndex: 10, borderBottom: "1px solid var(--border-0)", backgroundColor: "rgba(5,9,15,0.9)" }}>
         <div className="ticker-inner">
-          {tickers.map((t, i) => (
-            <div key={i} className="flex items-center gap-2 flex-shrink-0">
-              <span className="label-caps" style={{ color: "var(--t-3)" }}>{t.s}</span>
-              <span className="mono text-xs font-semibold" style={{ color: "var(--t-1)" }}>{t.p}</span>
-              <span className="mono text-xs font-bold" style={{ color: t.up ? "var(--green)" : "var(--red)" }}>{t.c}</span>
-              <span style={{ color: "var(--border-1)", fontSize: 12 }}>│</span>
-            </div>
-          ))}
+          {tickers.map((t, i) => {
+            const up = t.change >= 0;
+            const isEtf = t.symbol === "BTC ETF";
+            return (
+              <div key={i} className="flex items-center gap-2 flex-shrink-0">
+                <span className="label-caps" style={{ color: "var(--t-3)" }}>{t.symbol}</span>
+                <span className="mono text-xs font-semibold" style={{ color: "var(--t-1)" }}>
+                  {isEtf ? `$${t.price.toFixed(2)}B` : t.price.toFixed(3)}
+                </span>
+                {t.change !== 0 && (
+                  <span className="mono text-xs font-bold" style={{ color: up ? "var(--green)" : "var(--red)" }}>
+                    {up ? "▲" : "▼"} {Math.abs(t.change).toFixed(2)}%
+                  </span>
+                )}
+                <span style={{ color: "var(--border-1)", fontSize: 12 }}>│</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -112,7 +149,6 @@ export default function LandingPage() {
             <span className="live-dot" style={{ width: 5, height: 5 }} />
             SoSoValue × SoDEX
           </div>
-          <div className="badge badge-amber">Wave 1 · May 2026</div>
         </div>
 
         {/* Headline */}
@@ -337,49 +373,58 @@ export default function LandingPage() {
         </div>
 
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {SAMPLE_INDEXES.map((idx, i) => (
-            <Link key={i} href="/app/marketplace" style={{ textDecoration: "none" }}>
-              <div className="glass noise rounded-[20px] p-5 h-full transition-all duration-200"
-                style={{ cursor: "pointer" }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.borderColor = "rgba(0,217,255,0.15)";
-                  (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.borderColor = "var(--border-1)";
-                  (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
-                }}>
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <div className="text-sm font-bold mb-0.5" style={{ color: "var(--t-1)" }}>{idx.name}</div>
-                    <div className="text-xs" style={{ color: "var(--t-3)" }}>by {idx.creator}</div>
-                  </div>
-                  {idx.verified && <div className="badge badge-cyan" style={{ fontSize: 9 }}>Verified</div>}
-                </div>
-                <p className="text-xs leading-relaxed mb-4" style={{ color: "var(--t-2)" }}>{idx.thesis}</p>
-                <div className="sep mb-4" />
-                <div className="flex items-end justify-between">
-                  <div>
-                    <div className="label-caps mb-1">7d Return</div>
-                    <div className="num-lg mono" style={{ color: idx.ret >= 0 ? "var(--green)" : "var(--red)" }}>
-                      {idx.ret >= 0 ? "+" : ""}{idx.ret}%
+          {[...ssiIndexes].sort((a, b) => b.perf7d - a.perf7d).map((idx) => {
+            const tags = SECTOR_TAGS[idx.indexCode] ?? [];
+            return (
+              <Link key={idx.indexId} href="/app/marketplace" style={{ textDecoration: "none" }}>
+                <div className="glass noise rounded-[20px] p-5 h-full transition-all duration-200"
+                  style={{ cursor: "pointer" }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLElement).style.borderColor = "rgba(0,217,255,0.15)";
+                    (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.borderColor = "var(--border-1)";
+                    (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+                  }}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="text-sm font-bold mb-0.5" style={{ color: "var(--t-1)" }}>{idx.indexName}</div>
+                      <div className="text-xs" style={{ color: "var(--t-3)" }}>by SoSoValue</div>
+                    </div>
+                    <div className="badge badge-green" style={{ fontSize: 9 }}>
+                      <span className="live-dot" style={{ width: 4, height: 4 }} /> Live
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="label-caps mb-1">AUM</div>
-                    <div className="text-sm font-bold mono" style={{ color: "var(--t-2)" }}>{idx.aum}</div>
+                  <p className="text-xs leading-relaxed mb-4" style={{ color: "var(--t-2)" }}>
+                    {idx.description ?? `Tracks the top ${tags[0] ?? ""} tokens weighted by market cap and momentum signals.`}
+                  </p>
+                  <div className="sep mb-4" />
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <div className="label-caps mb-1">7d Return</div>
+                      <div className="num-lg mono" style={{ color: idx.perf7d >= 0 ? "var(--green)" : "var(--red)" }}>
+                        {idx.perf7d >= 0 ? "+" : ""}{idx.perf7d.toFixed(2)}%
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="label-caps mb-1">24h</div>
+                      <div className="text-sm font-bold mono" style={{ color: idx.changePercent >= 0 ? "var(--green)" : "var(--red)" }}>
+                        {idx.changePercent >= 0 ? "+" : ""}{idx.changePercent.toFixed(2)}%
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="label-caps mb-1">Tokens</div>
+                      <div className="text-sm font-bold" style={{ color: "var(--t-2)" }}>{idx.tokens.length}</div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="label-caps mb-1">Builders</div>
-                    <div className="text-sm font-bold" style={{ color: "var(--t-2)" }}>{idx.subs}</div>
+                  <div className="flex gap-1.5 flex-wrap mt-3">
+                    {tags.map((t) => <span key={t} className="badge badge-cyan" style={{ fontSize: 9 }}>{t}</span>)}
                   </div>
                 </div>
-                <div className="flex gap-1.5 flex-wrap mt-3">
-                  {idx.tags.map((t) => <span key={t} className="badge badge-cyan" style={{ fontSize: 9 }}>{t}</span>)}
-                </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       </section>
 
@@ -449,11 +494,3 @@ const STEPS = [
   { title:"Track & Rebalance",desc:"Monitor performance, approve AI rebalances",        icon:<TrendingUp size={18}/>, color:"var(--cyan)"  },
 ];
 
-const SAMPLE_INDEXES = [
-  { name:"AI Infrastructure Alpha", creator:"Atlas AI",   verified:true,  thesis:"High-conviction AI compute tokens with positive ETF flow correlation and institutional momentum", ret:14.2, aum:"$2.4M", subs:312, tags:["AI","Infrastructure"] },
-  { name:"DeFi Blue Chips",         creator:"defi_desk",  verified:false, thesis:"Battle-tested DeFi protocols with strong TVL, revenue, and institutional accumulation signals",    ret:8.7,  aum:"$890K", subs:187, tags:["DeFi","Institutional"] },
-  { name:"RWA Momentum Basket",     creator:"RWAdesk",    verified:true,  thesis:"Real world asset protocols with active institutional partnerships and growing on-chain AUM",       ret:6.3,  aum:"$1.1M", subs:243, tags:["RWA","Low Risk"] },
-  { name:"Layer 2 Ecosystem",       creator:"l2_maxi",    verified:false, thesis:"Ethereum scaling solutions with high transaction volume and developer activity momentum",          ret:11.9, aum:"$650K", subs:98,  tags:["L2","Ethereum"] },
-  { name:"Perp DEX Leaders",        creator:"dex_quant",  verified:false, thesis:"Perpetual futures DEX protocols with strong volume growth and SoDEX ecosystem integration",       ret:16.8, aum:"$780K", subs:156, tags:["DeFi","High Beta"] },
-  { name:"BTC Ecosystem Plays",     creator:"Atlas AI",   verified:true,  thesis:"Tokens with strong BTC ETF inflow correlation and infrastructure role in the Bitcoin ecosystem",  ret:9.4,  aum:"$3.1M", subs:421, tags:["BTC","ETF-Driven"] },
-];

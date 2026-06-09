@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ethers } from "ethers";
 import type { IndexProposal } from "@/lib/types";
+import { addPortfolioPosition } from "@/lib/store";
 
 const TESTNET_SPOT = "https://testnet-gw.sodex.dev/api/v1/spot";
 
@@ -83,7 +84,7 @@ function simulateResponse(proposal: IndexProposal) {
       status: "filled", txHash: txHash(), live: false,
     };
   });
-  return NextResponse.json({
+  const result = {
     success: true,
     bundleTxHash: txHash(),
     legs,
@@ -93,7 +94,28 @@ function simulateResponse(proposal: IndexProposal) {
     totalFees:     +(proposal.totalValue * 0.001).toFixed(2),
     totalSlippage: +legs.reduce((s, l) => s + l.usdAmount * (l.slippageBps / 10000), 0).toFixed(2),
     live: false,
+  };
+
+  addPortfolioPosition({
+    id:            result.bundleTxHash,
+    indexName:     proposal.name,
+    indexId:       proposal.id,
+    allocatedUSD:  proposal.totalValue,
+    bundleTxHash:  result.bundleTxHash,
+    network:       result.network,
+    createdAt:     Date.now(),
+    live:          false,
+    tokens: proposal.tokens.map((t) => ({
+      symbol:    t.symbol,
+      sector:    t.sector,
+      weight:    t.weight,
+      allocUSD:  +((t.weight / 100) * proposal.totalValue).toFixed(2),
+      filledQty: +((t.weight / 100) * proposal.totalValue / t.price).toFixed(6),
+      fillPrice: t.price,
+    })),
   });
+
+  return NextResponse.json(result);
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
@@ -185,6 +207,25 @@ export async function POST(req: NextRequest) {
     );
 
     const bundleRef = `sodex-${data.timestamp ?? nonce}`;
+
+    addPortfolioPosition({
+      id:           bundleRef,
+      indexName:    proposal.name,
+      indexId:      proposal.id,
+      allocatedUSD: proposal.totalValue,
+      bundleTxHash: bundleRef,
+      network:      "SoDEX Testnet",
+      createdAt:    Date.now(),
+      live:         true,
+      tokens: legs.map((l) => ({
+        symbol:    l.symbol,
+        sector:    proposal.tokens.find((t) => t.symbol === l.symbol)?.sector ?? "",
+        weight:    proposal.tokens.find((t) => t.symbol === l.symbol)?.weight ?? 0,
+        allocUSD:  l.usdAmount,
+        filledQty: l.filledQty,
+        fillPrice: l.fillPrice,
+      })),
+    });
 
     return NextResponse.json({
       success:       true,

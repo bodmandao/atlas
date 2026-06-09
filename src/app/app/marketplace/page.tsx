@@ -2,56 +2,58 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Globe, TrendingUp, Users, Star, Zap, Filter, PlusCircle, Loader2 } from "lucide-react";
+import { Globe, Users, Star, Zap, Filter, PlusCircle, Loader2 } from "lucide-react";
 import type { StoredIndex } from "@/lib/store";
+import type { SSIIndex } from "@/lib/sosovalue";
 
-const CURATED: StoredIndex[] = [
-  { id: "c1", name: "AI Infrastructure Alpha", creator: "Atlas AI", description: "High-conviction AI compute tokens", thesis: "AI compute and infrastructure tokens with positive ETF flow correlation and institutional momentum", perf7d: 14.2, perf30d: 38.7, aum: 2400000, subscribers: 312, riskLevel: "medium", sector: "AI", tokens: ["TAO", "RENDER", "FET", "WLD", "OCEAN"], publishedAt: Date.now(), aiConfidence: 87 },
-  { id: "c2", name: "DeFi Blue Chips", creator: "defi_maxi", description: "Battle-tested DeFi protocols", thesis: "Battle-tested DeFi protocols with strong TVL, revenue, and institutional accumulation signals", perf7d: 8.7, perf30d: 22.4, aum: 890000, subscribers: 187, riskLevel: "medium", sector: "DeFi", tokens: ["AAVE", "UNI", "COMP", "MKR", "SNX"], publishedAt: Date.now(), aiConfidence: 73 },
-  { id: "c3", name: "RWA Momentum Basket", creator: "RWAdesk", description: "Real world asset tokenization", thesis: "Real world asset tokenization protocols with active institutional partnerships and growing on-chain AUM", perf7d: 6.3, perf30d: 18.9, aum: 1100000, subscribers: 243, riskLevel: "low", sector: "RWA", tokens: ["LINK", "PENDLE", "TRU"], publishedAt: Date.now(), aiConfidence: 79 },
-  { id: "c4", name: "Layer 2 Ecosystem", creator: "l2_maxi", description: "Ethereum scaling solutions", thesis: "Ethereum scaling solutions with high transaction volume and developer activity momentum", perf7d: 11.9, perf30d: 29.4, aum: 650000, subscribers: 98, riskLevel: "medium", sector: "Layer2", tokens: ["ARB", "OP", "MATIC", "MANTA", "ALT"], publishedAt: Date.now(), aiConfidence: 71 },
-  { id: "c5", name: "Privacy Tech Revival", creator: "privacymaxi", description: "Privacy-preserving protocols", thesis: "Zero-knowledge and privacy-preserving protocols with growing regulatory tailwinds and developer interest", perf7d: -2.1, perf30d: 5.3, aum: 320000, subscribers: 67, riskLevel: "high", sector: "Privacy", tokens: ["MANTA", "BLUR", "SEI"], publishedAt: Date.now(), aiConfidence: 58 },
-  { id: "c6", name: "BTC Ecosystem Plays", creator: "Atlas AI", description: "BTC correlation infrastructure", thesis: "Tokens with strong BTC ETF inflow correlation and infrastructure role in the Bitcoin ecosystem", perf7d: 9.4, perf30d: 25.1, aum: 3100000, subscribers: 421, riskLevel: "low", sector: "Layer1", tokens: ["STX", "LINK", "PYTH", "JTO"], publishedAt: Date.now(), aiConfidence: 82 },
-  { id: "c7", name: "Perp DEX Leaders", creator: "dex_quant", description: "Perpetual futures DEX protocols", thesis: "Perpetual futures DEX protocols with strong volume growth and SoDEX ecosystem integration", perf7d: 16.8, perf30d: 44.2, aum: 780000, subscribers: 156, riskLevel: "high", sector: "DeFi", tokens: ["GMX", "DYDX", "INJ", "JTO"], publishedAt: Date.now(), aiConfidence: 65 },
-  { id: "c8", name: "Liquid Staking Dominance", creator: "staking_desk", description: "Liquid staking derivatives", thesis: "Liquid staking derivatives and restaking protocols positioned for ETH validator demand surge", perf7d: 7.2, perf30d: 19.8, aum: 1650000, subscribers: 289, riskLevel: "low", sector: "DeFi", tokens: ["LDO", "RPL", "PENDLE", "AAVE"], publishedAt: Date.now(), aiConfidence: 76 },
-];
+const SECTOR_FROM_TICKER: Record<string, string> = {
+  ssiDeFi: "DeFi", ssiAI: "AI", ssiLayer1: "Layer1", ssiLayer2: "Layer2", ssiRWA: "RWA",
+};
+
+const RISK_FROM_TICKER: Record<string, string> = {
+  ssiDeFi: "medium", ssiAI: "high", ssiLayer1: "low", ssiLayer2: "medium", ssiRWA: "low",
+};
 
 const RISK_COLORS: Record<string, string> = {
-  low: "#00e676", medium: "#00d9ff", high: "#d4a841", very_high: "#ff4444"
+  low: "#00e676", medium: "#00d9ff", high: "#d4a841", very_high: "#ff4444",
 };
 const SECTOR_COLORS: Record<string, string> = {
   DeFi: "#8b5cf6", Layer1: "#3b82f6", Layer2: "#06b6d4",
   AI: "#d4a841", RWA: "#00e676", Infrastructure: "#6366f1", Privacy: "#84cc16",
 };
 
-const FILTERS = ["All", "AI", "DeFi", "Layer1", "Layer2", "RWA", "Infrastructure", "Privacy"];
+const FILTERS = ["All", "AI", "DeFi", "Layer1", "Layer2", "RWA"];
 
 export default function MarketplacePage() {
+  const [ssiIndexes, setSsiIndexes]         = useState<SSIIndex[]>([]);
   const [publishedIndexes, setPublishedIndexes] = useState<StoredIndex[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [loadingSsi, setLoadingSsi]         = useState(true);
+  const [loadingPub, setLoadingPub]         = useState(true);
+  const [activeFilter, setActiveFilter]     = useState("All");
 
   useEffect(() => {
+    fetch("/api/ssi-indexes")
+      .then((r) => r.json())
+      .then((d) => setSsiIndexes(d.indexes ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingSsi(false));
+
     fetch("/api/published-indexes")
       .then((r) => r.json())
-      .then((data) => setPublishedIndexes(data.indexes ?? []))
+      .then((d) => setPublishedIndexes(d.indexes ?? []))
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => setLoadingPub(false));
   }, []);
 
-  const allIndexes = [...CURATED];
-  const filtered = activeFilter === "All"
-    ? allIndexes
-    : allIndexes.filter((i) => i.sector === activeFilter || (i.tokens ?? []).includes(activeFilter));
+  const filteredSSI = activeFilter === "All"
+    ? ssiIndexes
+    : ssiIndexes.filter((i) => SECTOR_FROM_TICKER[i.indexCode] === activeFilter);
 
-  const sorted = [...filtered].sort((a, b) => b.perf7d - a.perf7d);
-  const topPerformer = CURATED.sort((a, b) => b.perf7d - a.perf7d)[0];
-  const totalAUM = CURATED.reduce((s, i) => s + i.aum, 0);
-  const totalSubs = CURATED.reduce((s, i) => s + i.subscribers, 0);
-  const bestReturn = Math.max(...CURATED.map((i) => i.perf7d));
+  const topPerformer = [...ssiIndexes].sort((a, b) => b.perf7d - a.perf7d)[0];
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -61,9 +63,14 @@ export default function MarketplacePage() {
               <Globe size={18} />
             </div>
             <h1 className="text-2xl font-black" style={{ color: "var(--t-1)" }}>Index Marketplace</h1>
+            {!loadingSsi && (
+              <span className="badge badge-green">
+                <span className="live-dot" style={{ width: 5, height: 5 }} /> Live
+              </span>
+            )}
           </div>
           <p className="text-sm" style={{ color: "var(--t-2)" }}>
-            Browse, subscribe, and copy-execute top-performing thematic indexes
+            Real-time SoSoValue SSI indexes and community-built baskets
           </p>
         </div>
         <Link href="/app/builder" className="btn btn-cyan px-5 py-2.5 text-sm flex-shrink-0">
@@ -71,13 +78,13 @@ export default function MarketplacePage() {
         </Link>
       </div>
 
-      {/* Stats bar */}
+      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Indexes",      value: (CURATED.length + publishedIndexes.length).toString(), color: "var(--cyan)"  },
-          { label: "Combined AUM",       value: `$${(totalAUM / 1e6).toFixed(1)}M`,                   color: "var(--green)" },
-          { label: "Total Subscribers",  value: totalSubs.toLocaleString(),                           color: "#a78bfa"      },
-          { label: "Best 7d Return",     value: `+${bestReturn.toFixed(1)}%`,                         color: "var(--amber)" },
+          { label: "SSI Indexes",   value: loadingSsi ? "…" : String(ssiIndexes.length),                                                        color: "var(--cyan)"  },
+          { label: "Community",     value: loadingPub ? "…" : String(publishedIndexes.length),                                                   color: "#a78bfa"      },
+          { label: "Best 7d",       value: loadingSsi || !topPerformer ? "…" : `${topPerformer.perf7d >= 0 ? "+" : ""}${topPerformer.perf7d.toFixed(1)}%`, color: topPerformer?.perf7d >= 0 ? "var(--green)" : "var(--red)" },
+          { label: "Data Source",   value: "SoSoValue",                                                                                          color: "var(--amber)" },
         ].map((s) => (
           <div key={s.label} className="metric-card text-center">
             <div className="num-xl mono mb-1" style={{ color: s.color }}>{s.value}</div>
@@ -86,74 +93,56 @@ export default function MarketplacePage() {
         ))}
       </div>
 
-      {/* Top performer spotlight */}
-      <div className="border-gradient">
-        <div className="glass relative overflow-hidden" style={{ padding: "24px" }}>
-          <div className="absolute top-4 right-4">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
-              style={{ background: "var(--amber-dim)", border: "1px solid rgba(212,168,65,0.2)" }}>
-              <Star size={11} style={{ color: "var(--amber)" }} />
-              <span className="text-xs font-bold" style={{ color: "var(--amber)" }}>Top Performer</span>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-5">
-            <div className="flex-1">
-              <div className="label-caps mb-2">Spotlight · This Week</div>
-              <h2 className="text-xl font-black mb-1" style={{ color: "var(--t-1)" }}>{topPerformer.name}</h2>
-              <p className="text-sm mb-4 leading-relaxed max-w-lg" style={{ color: "var(--t-2)" }}>
-                {topPerformer.thesis}
-              </p>
-              <div className="flex gap-1.5 flex-wrap">
-                {topPerformer.tokens.map((t) => (
-                  <span key={t} className="badge badge-cyan">{t}</span>
-                ))}
+      {/* Spotlight — top SSI performer */}
+      {!loadingSsi && topPerformer && (
+        <div className="border-gradient">
+          <div className="glass relative overflow-hidden" style={{ padding: "24px" }}>
+            <div className="absolute top-4 right-4">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
+                style={{ background: "var(--amber-dim)", border: "1px solid rgba(212,168,65,0.2)" }}>
+                <Star size={11} style={{ color: "var(--amber)" }} />
+                <span className="text-xs font-bold" style={{ color: "var(--amber)" }}>Top 7d Performer</span>
               </div>
             </div>
-            <div className="flex sm:flex-col gap-4 sm:gap-3 sm:text-right sm:min-w-[130px]">
-              <div>
-                <div className="label-caps mb-1">7d Return</div>
-                <div className="num-xl mono up">+{topPerformer.perf7d}%</div>
+            <div className="flex flex-col sm:flex-row gap-5">
+              <div className="flex-1">
+                <div className="label-caps mb-2">SoSoValue SSI · Spotlight</div>
+                <h2 className="text-xl font-black mb-1" style={{ color: "var(--t-1)" }}>{topPerformer.indexName}</h2>
+                <div className="flex gap-1.5 flex-wrap mt-3">
+                  {topPerformer.tokens.slice(0, 6).map((t) => (
+                    <span key={t} className="badge badge-cyan">{t}</span>
+                  ))}
+                  {topPerformer.tokens.length > 6 && (
+                    <span className="badge" style={{ color: "var(--t-3)" }}>+{topPerformer.tokens.length - 6} more</span>
+                  )}
+                </div>
               </div>
-              <div>
-                <div className="label-caps mb-1">30d Return</div>
-                <div className="num-lg mono up">+{topPerformer.perf30d}%</div>
-              </div>
-              <div>
-                <div className="label-caps mb-1">AUM</div>
-                <div className="text-sm font-bold font-mono" style={{ color: "var(--t-2)" }}>
-                  ${(topPerformer.aum / 1e6).toFixed(1)}M
+              <div className="flex sm:flex-col gap-4 sm:gap-3 sm:text-right sm:min-w-[130px]">
+                <div>
+                  <div className="label-caps mb-1">7d Return</div>
+                  <div className={`num-xl mono ${topPerformer.perf7d >= 0 ? "up" : "down"}`}>
+                    {topPerformer.perf7d >= 0 ? "+" : ""}{topPerformer.perf7d.toFixed(2)}%
+                  </div>
+                </div>
+                <div>
+                  <div className="label-caps mb-1">30d Return</div>
+                  <div className={`num-lg mono ${topPerformer.perf30d >= 0 ? "up" : "down"}`}>
+                    {topPerformer.perf30d >= 0 ? "+" : ""}{topPerformer.perf30d.toFixed(2)}%
+                  </div>
+                </div>
+                <div>
+                  <div className="label-caps mb-1">Index Price</div>
+                  <div className="text-sm font-bold font-mono" style={{ color: "var(--t-2)" }}>
+                    ${topPerformer.indexValue.toFixed(4)}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* User-published indexes section */}
-      {(loading || publishedIndexes.length > 0) && (
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="label-caps">Your Published Indexes</div>
-            {loading
-              ? <Loader2 size={13} className="spin-ring" style={{ color: "var(--t-3)" }} />
-              : <span className="badge badge-green">{publishedIndexes.length} live</span>}
-          </div>
-          {loading ? (
-            <div className="glass text-center py-10" style={{ color: "var(--t-3)" }}>
-              <Loader2 size={20} className="spin-ring mx-auto mb-2" />
-              <div className="text-sm">Loading published indexes...</div>
-            </div>
-          ) : publishedIndexes.length > 0 ? (
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {publishedIndexes.map((idx) => (
-                <IndexCard key={idx.id} idx={idx} userPublished />
-              ))}
-            </div>
-          ) : null}
-        </div>
       )}
 
-      {/* Filter bar */}
+      {/* Filter */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2" style={{ color: "var(--t-3)" }}>
           <Filter size={13} />
@@ -161,61 +150,164 @@ export default function MarketplacePage() {
         </div>
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setActiveFilter(f)}
-            className="badge cursor-pointer hover:opacity-90 transition-opacity"
-            style={
-              f === activeFilter
-                ? { background: "var(--cyan-dim)", color: "var(--cyan)", border: "1px solid var(--border-2)" }
-                : { background: "var(--bg-3)", color: "var(--t-3)", border: "1px solid var(--border-1)" }
-            }>
+            className="badge cursor-pointer transition-opacity hover:opacity-90"
+            style={f === activeFilter
+              ? { background: "var(--cyan-dim)", color: "var(--cyan)", border: "1px solid var(--border-2)" }
+              : { background: "var(--bg-3)", color: "var(--t-3)", border: "1px solid var(--border-1)" }}>
             {f}
           </button>
         ))}
       </div>
 
-      {/* Curated index grid */}
+      {/* SSI Index grid */}
       <div>
-        <div className="label-caps mb-4">Curated Indexes</div>
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {sorted.map((idx) => <IndexCard key={idx.id} idx={idx} />)}
+        <div className="flex items-center gap-2 mb-4">
+          <div className="label-caps">SoSoValue SSI Indexes</div>
+          <span className="badge badge-green">Live</span>
+        </div>
+        {loadingSsi ? (
+          <div className="glass text-center py-12">
+            <Loader2 size={22} className="spin-ring mx-auto mb-2" style={{ color: "var(--cyan)" }} />
+            <div className="text-sm" style={{ color: "var(--t-3)" }}>Fetching live SSI data…</div>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {filteredSSI.map((idx) => <SSICard key={idx.indexId} idx={idx} />)}
+          </div>
+        )}
+      </div>
+
+      {/* Community published */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="label-caps">Community Published</div>
+          {loadingPub
+            ? <Loader2 size={13} className="spin-ring" style={{ color: "var(--t-3)" }} />
+            : <span className="badge badge-violet">{publishedIndexes.length} indexes</span>}
+        </div>
+        {!loadingPub && publishedIndexes.length === 0 ? (
+          <div className="glass text-center py-10">
+            <p className="text-sm mb-3" style={{ color: "var(--t-3)" }}>No community indexes yet.</p>
+            <Link href="/app/builder" className="btn btn-cyan px-5 py-2 text-sm">
+              Build & Publish the first one
+            </Link>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {publishedIndexes.map((idx) => <CommunityCard key={idx.id} idx={idx} />)}
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+function SSICard({ idx }: { idx: SSIIndex }) {
+  const sector     = SECTOR_FROM_TICKER[idx.indexCode] ?? "Mixed";
+  const risk       = RISK_FROM_TICKER[idx.indexCode]   ?? "medium";
+  const sectorCol  = SECTOR_COLORS[sector]  ?? "#8aa3c4";
+  const riskCol    = RISK_COLORS[risk]      ?? "var(--cyan)";
+
+  return (
+    <div className="glass flex flex-col hover:scale-[1.015] transition-transform">
+      <div style={{ padding: "20px 20px 0" }}>
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
+              style={{ background: `${sectorCol}20`, color: sectorCol }}>
+              {sector.slice(0, 2)}
+            </div>
+            <div>
+              <div className="text-sm font-bold leading-tight" style={{ color: "var(--t-1)" }}>
+                {idx.indexName}
+              </div>
+              <div className="text-xs" style={{ color: "var(--t-3)" }}>SoSoValue · {sector}</div>
+            </div>
+          </div>
+          <span className="badge badge-green" style={{ fontSize: "9px" }}>Live</span>
+        </div>
+
+        <div className="flex gap-1 flex-wrap mb-4">
+          {idx.tokens.length > 0
+            ? idx.tokens.slice(0, 5).map((t) => <span key={t} className="badge badge-cyan">{t}</span>)
+            : <span className="text-xs" style={{ color: "var(--t-3)" }}>Constituents loading…</span>}
+          {idx.tokens.length > 5 && (
+            <span className="badge" style={{ color: "var(--t-3)" }}>+{idx.tokens.length - 5}</span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="text-center glass-inset py-2">
+            <div className="label-caps mb-0.5">24h</div>
+            <div className="text-sm font-black font-mono"
+              style={{ color: idx.changePercent >= 0 ? "var(--green)" : "var(--red)" }}>
+              {idx.changePercent >= 0 ? "+" : ""}{idx.changePercent.toFixed(2)}%
+            </div>
+          </div>
+          <div className="text-center glass-inset py-2">
+            <div className="label-caps mb-0.5">7d</div>
+            <div className="text-sm font-black font-mono"
+              style={{ color: idx.perf7d >= 0 ? "var(--green)" : "var(--red)" }}>
+              {idx.perf7d >= 0 ? "+" : ""}{idx.perf7d.toFixed(2)}%
+            </div>
+          </div>
+          <div className="text-center glass-inset py-2">
+            <div className="label-caps mb-0.5">30d</div>
+            <div className="text-sm font-black font-mono"
+              style={{ color: idx.perf30d >= 0 ? "var(--green)" : "var(--red)" }}>
+              {idx.perf30d >= 0 ? "+" : ""}{idx.perf30d.toFixed(2)}%
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between px-5 py-3 mt-auto"
+        style={{ borderTop: "1px solid var(--border-1)" }}>
+        <div>
+          <span className="badge"
+            style={{ background: `${riskCol}15`, color: riskCol, border: `1px solid ${riskCol}30` }}>
+            {risk}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono" style={{ color: "var(--t-3)" }}>
+            ${idx.indexValue.toFixed(4)}
+          </span>
+          <button className="btn btn-cyan px-4 py-1.5 text-xs">
+            <Zap size={11} /> Copy Execute
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function IndexCard({ idx, userPublished = false }: { idx: StoredIndex; userPublished?: boolean }) {
-  const sectorColor = SECTOR_COLORS[idx.sector] ?? "#8aa3c4";
-  const riskColor   = RISK_COLORS[idx.riskLevel] ?? "var(--cyan)";
+function CommunityCard({ idx }: { idx: StoredIndex }) {
+  const sectorCol = SECTOR_COLORS[idx.sector] ?? "#8aa3c4";
+  const riskCol   = RISK_COLORS[idx.riskLevel] ?? "var(--cyan)";
 
   return (
     <div className="glass flex flex-col hover:scale-[1.015] transition-transform"
-      style={userPublished ? { border: "1px solid rgba(0,230,118,0.2)" } : undefined}>
+      style={{ border: "1px solid rgba(167,139,250,0.15)" }}>
       <div style={{ padding: "20px 20px 0" }}>
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
-              style={{ background: `${sectorColor}20`, color: sectorColor }}>
+              style={{ background: `${sectorCol}20`, color: sectorCol }}>
               {(idx.sector ?? "?").slice(0, 2)}
             </div>
             <div>
-              <div className="text-sm font-bold leading-tight" style={{ color: "var(--t-1)" }}>
-                {idx.name}
-              </div>
-              <div className="text-xs" style={{ color: "var(--t-3)" }}>
-                by {idx.creator}
-                {userPublished && <span style={{ color: "var(--green)" }}> · you</span>}
-              </div>
+              <div className="text-sm font-bold leading-tight" style={{ color: "var(--t-1)" }}>{idx.name}</div>
+              <div className="text-xs" style={{ color: "var(--t-3)" }}>by {idx.creator}</div>
             </div>
           </div>
-          {userPublished && (
-            <span className="badge badge-green" style={{ fontSize: "9px" }}>Published</span>
-          )}
+          <span className="badge badge-violet" style={{ fontSize: "9px" }}>Community</span>
         </div>
 
         <p className="text-xs mb-4 leading-relaxed" style={{ color: "var(--t-2)" }}>
-          {(idx.thesis ?? idx.description ?? "").length > 100
-            ? (idx.thesis ?? idx.description ?? "").slice(0, 100) + "…"
-            : (idx.thesis ?? idx.description ?? "")}
+          {(idx.thesis ?? idx.description ?? "").slice(0, 100)}
+          {(idx.thesis ?? idx.description ?? "").length > 100 ? "…" : ""}
         </p>
 
         <div className="flex gap-1 flex-wrap mb-4">
@@ -248,7 +340,7 @@ function IndexCard({ idx, userPublished = false }: { idx: StoredIndex; userPubli
       <div className="flex items-center justify-between px-5 py-3 mt-auto"
         style={{ borderTop: "1px solid var(--border-1)" }}>
         <span className="badge"
-          style={{ background: `${riskColor}15`, color: riskColor, border: `1px solid ${riskColor}30` }}>
+          style={{ background: `${riskCol}15`, color: riskCol, border: `1px solid ${riskCol}30` }}>
           {idx.riskLevel}
         </span>
         <button className="btn btn-cyan px-4 py-1.5 text-xs">
