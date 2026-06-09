@@ -115,14 +115,14 @@ export default function LandingPage() {
         </Link>
 
         {/* Center links */}
-        <div className="hidden md:flex items-center gap-8">
+        {/* <div className="hidden md:flex items-center gap-8">
           {["Protocol", "Indexes", "Signals", "Docs"].map((l) => (
             <a key={l} href="#" className="text-xs font-semibold tracking-wider uppercase transition-colors"
               style={{ color: "var(--t-3)", letterSpacing: "0.08em", textDecoration: "none" }}
               onMouseEnter={e => (e.currentTarget.style.color = "var(--t-2)")}
               onMouseLeave={e => (e.currentTarget.style.color = "var(--t-3)")}>{l}</a>
           ))}
-        </div>
+        </div> */}
 
         {/* Right actions */}
         <div className="flex items-center gap-3">
