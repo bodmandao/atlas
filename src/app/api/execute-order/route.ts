@@ -72,7 +72,7 @@ async function fetchSymbolMap(): Promise<Map<string, SodexSymbol>> {
 const hex   = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 const txHash = ()          => `0x${hex(64)}`;
 
-function simulateResponse(proposal: IndexProposal) {
+async function simulateResponse(proposal: IndexProposal, reason: string) {
   const legs = proposal.tokens.map((t) => {
     const usd      = (t.weight / 100) * proposal.totalValue;
     const slipBps  = Math.round(Math.random() * 12 + 2);
@@ -94,17 +94,20 @@ function simulateResponse(proposal: IndexProposal) {
     totalFees:     +(proposal.totalValue * 0.001).toFixed(2),
     totalSlippage: +legs.reduce((s, l) => s + l.usdAmount * (l.slippageBps / 10000), 0).toFixed(2),
     live: false,
+    simulated: true,
+    simulatedReason: reason,
   };
 
-  addPortfolioPosition({
-    id:            result.bundleTxHash,
+  await addPortfolioPosition({
     indexName:     proposal.name,
     indexId:       proposal.id,
+    thesisId:      proposal.id,
     allocatedUSD:  proposal.totalValue,
     bundleTxHash:  result.bundleTxHash,
     network:       result.network,
-    createdAt:     Date.now(),
     live:          false,
+    simulated:     true,
+    simulatedReason: reason,
     tokens: proposal.tokens.map((t) => ({
       symbol:    t.symbol,
       sector:    t.sector,
@@ -128,7 +131,7 @@ export async function POST(req: NextRequest) {
 
   // No credentials — use simulation
   if (!apiKeyName || !privateKey || !accountID) {
-    return simulateResponse(proposal);
+    return simulateResponse(proposal, "No SoDEX testnet credentials configured (SODEX_API_KEY_NAME / SODEX_PRIVATE_KEY / SODEX_ACCOUNT_ID)");
   }
 
   try {
@@ -159,7 +162,7 @@ export async function POST(req: NextRequest) {
 
     if (orders.length === 0) {
       console.warn("[execute-order] No matching SoDEX symbols, falling back to simulation. Skipped:", skipped);
-      return simulateResponse(proposal);
+      return simulateResponse(proposal, `No matching SoDEX symbols for: ${skipped.join(", ")}`);
     }
 
     const batchRequest = { accountID, orders };
@@ -182,7 +185,7 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok || data.code !== 0) {
       console.error("[execute-order] SoDEX error:", data);
-      return simulateResponse(proposal);
+      return simulateResponse(proposal, `SoDEX rejected the batch order (${data.code ?? res.status}): ${data.message ?? res.statusText}`);
     }
 
     // Map SoDEX order results back to our leg format
@@ -208,15 +211,16 @@ export async function POST(req: NextRequest) {
 
     const bundleRef = `sodex-${data.timestamp ?? nonce}`;
 
-    addPortfolioPosition({
-      id:           bundleRef,
+    await addPortfolioPosition({
       indexName:    proposal.name,
       indexId:      proposal.id,
+      thesisId:     proposal.id,
       allocatedUSD: proposal.totalValue,
       bundleTxHash: bundleRef,
       network:      "SoDEX Testnet",
-      createdAt:    Date.now(),
       live:         true,
+      simulated:    false,
+      simulatedReason: null,
       tokens: legs.map((l) => ({
         symbol:    l.symbol,
         sector:    proposal.tokens.find((t) => t.symbol === l.symbol)?.sector ?? "",
@@ -237,10 +241,11 @@ export async function POST(req: NextRequest) {
       totalFees:     +(proposal.totalValue * 0.001).toFixed(2),
       totalSlippage: 0,
       live:          true,
+      simulated:     false,
       skipped:       skipped.length ? skipped : undefined,
     });
   } catch (err) {
     console.error("[execute-order]", err);
-    return simulateResponse(proposal);
+    return simulateResponse(proposal, `Unexpected error during live execution: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
