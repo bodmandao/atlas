@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Globe, Users, Star, Zap, Filter, PlusCircle, Loader2 } from "lucide-react";
+import { Globe, Users, Star, Zap, Filter, PlusCircle, Loader2, ShieldCheck } from "lucide-react";
 import type { StoredIndex } from "@/lib/store";
 import type { SSIIndex } from "@/lib/sosovalue";
 
@@ -283,6 +283,15 @@ function SSICard({ idx }: { idx: SSIIndex }) {
   );
 }
 
+function RigorBadge({ score }: { score: number }) {
+  const color = score >= 80 ? "var(--green)" : score >= 50 ? "var(--amber)" : "var(--red)";
+  return (
+    <span className="badge flex-shrink-0" style={{ background: `${color}1a`, color, border: `1px solid ${color}40`, fontSize: "9px" }}>
+      Rigor {score}
+    </span>
+  );
+}
+
 function CommunityCard({ idx }: { idx: StoredIndex }) {
   const sectorCol = SECTOR_COLORS[idx.sector] ?? "#8aa3c4";
   const riskCol   = RISK_COLORS[idx.riskLevel] ?? "var(--cyan)";
@@ -317,10 +326,14 @@ function CommunityCard({ idx }: { idx: StoredIndex }) {
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="text-center glass-inset py-2">
             <div className="label-caps mb-0.5">7d</div>
-            <div className="text-base font-black font-mono"
-              style={{ color: idx.perf7d >= 0 ? "var(--green)" : "var(--red)" }}>
-              {idx.perf7d >= 0 ? "+" : ""}{idx.perf7d.toFixed(1)}%
-            </div>
+            {idx.perf7d === null ? (
+              <div className="text-xs font-medium" style={{ color: "var(--t-3)" }}>Pending T+7d</div>
+            ) : (
+              <div className="text-base font-black font-mono"
+                style={{ color: idx.perf7d >= 0 ? "var(--green)" : "var(--red)" }}>
+                {idx.perf7d >= 0 ? "+" : ""}{idx.perf7d.toFixed(1)}%
+              </div>
+            )}
           </div>
           <div className="text-center glass-inset py-2">
             <div className="label-caps mb-0.5">AUM</div>
@@ -335,6 +348,17 @@ function CommunityCard({ idx }: { idx: StoredIndex }) {
             </div>
           </div>
         </div>
+
+        <Link href={`/app/ledger/${idx.thesisId}`}
+          className="flex items-center gap-2 text-xs mb-4 hover:opacity-80"
+          style={{ color: "var(--t-3)" }}>
+          <ShieldCheck size={11} />
+          <span className="font-mono truncate flex-1">{idx.canonicalHash.slice(0, 18)}…</span>
+          {idx.verification.status === "completed" && idx.verification.score !== null && (
+            <RigorBadge score={idx.verification.score} />
+          )}
+          <span style={{ color: "var(--cyan)" }}>View Ledger →</span>
+        </Link>
       </div>
 
       <div className="flex items-center justify-between px-5 py-3 mt-auto"
