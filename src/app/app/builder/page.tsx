@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Brain, Zap, Shield, ArrowRight, RefreshCw, ChevronDown,
   ChevronUp, AlertTriangle, CheckCircle2, Loader2, Sparkles,
@@ -10,6 +11,7 @@ import { IndexProposal, IndexToken } from "@/lib/types";
 import { formatPercent } from "@/lib/utils";
 import { BacktestChart } from "@/components/BacktestChart";
 import { RadarChart } from "@/components/RadarChart";
+import { getOrCreateCreatorHandle, getCreatorName, setCreatorName } from "@/lib/creator-identity";
 
 const THESIS_EXAMPLES = [
   "AI infrastructure tokens with strong institutional ETF inflows and positive momentum",
@@ -36,6 +38,8 @@ interface TxResult {
   totalValue: number;
   totalFees: number;
   totalSlippage: number;
+  simulated?: boolean;
+  simulatedReason?: string;
 }
 
 const SECTOR_COLORS: Record<string, string> = {
@@ -61,6 +65,8 @@ export default function BuilderPage() {
   const [maxTokens, setMaxTokens]     = useState(8);
   const [step, setStep]               = useState<BuildStep>("input");
   const [proposal, setProposal]       = useState<IndexProposal | null>(null);
+  const [thesisId, setThesisId]       = useState<string | null>(null);
+  const [canonicalHash, setCanonicalHash] = useState<string | null>(null);
   const [dataSource, setDataSource]   = useState<"live" | "mock" | null>(null);
   const [txResult, setTxResult]       = useState<TxResult | null>(null);
   const [error, setError]             = useState<string | null>(null);
@@ -70,6 +76,8 @@ export default function BuilderPage() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [published, setPublished]     = useState(false);
   const [copied, setCopied]           = useState(false);
+  const [nameInput, setNameInput]     = useState("");
+  const [needsName, setNeedsName]     = useState(false);
 
   const LOADING_MSGS = [
     "Fetching SoSoValue ETF flow data...",
@@ -98,6 +106,8 @@ export default function BuilderPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Build failed");
       setProposal(data.proposal);
+      setThesisId(data.thesisId ?? null);
+      setCanonicalHash(data.canonicalHash ?? null);
       setDataSource(data.dataSource ?? "mock");
       setStep("review");
     } catch (e) {
@@ -128,16 +138,39 @@ export default function BuilderPage() {
     }
   }
 
+  function startPublish() {
+    if (!thesisId || isPublishing || published) return;
+    if (!getCreatorName()) {
+      setNeedsName(true);
+      return;
+    }
+    publishIndex();
+  }
+
+  function confirmNameAndPublish() {
+    if (nameInput.trim()) setCreatorName(nameInput.trim());
+    setNeedsName(false);
+    publishIndex();
+  }
+
   async function publishIndex() {
-    if (!proposal || isPublishing || published) return;
+    if (!thesisId || isPublishing || published) return;
     setIsPublishing(true);
     try {
-      await fetch("/api/publish-index", {
+      const res = await fetch("/api/publish-index", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposal }),
+        body: JSON.stringify({
+          thesisId,
+          creatorHandle: getOrCreateCreatorHandle(),
+          creatorName: getCreatorName(),
+        }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Publish failed");
       setPublished(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Publish failed");
     } finally {
       setIsPublishing(false);
     }
@@ -413,7 +446,7 @@ export default function BuilderPage() {
           <RadarChart proposal={proposal} />
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <button onClick={() => { setStep("input"); setProposal(null); setDataSource(null); }}
+            <button onClick={() => { setStep("input"); setProposal(null); setDataSource(null); setThesisId(null); setCanonicalHash(null); }}
               className="btn btn-outline px-6 py-3 text-sm">
               <RefreshCw size={15} /> Rebuild
             </button>
@@ -455,6 +488,19 @@ export default function BuilderPage() {
               <strong style={{ color: "var(--t-1)" }}>{proposal.name}</strong> — {txResult.legs.length} orders filled on {txResult.network}
             </p>
           </div>
+
+          {txResult.simulated && (
+            <div className="p-4 flex items-start gap-3"
+              style={{ borderRadius: "var(--radius-md)", background: "var(--amber-dim)", border: "1px solid rgba(212,168,65,0.25)" }}>
+              <AlertTriangle size={16} style={{ color: "var(--amber)", flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <div className="text-sm font-semibold" style={{ color: "var(--amber)" }}>Simulated fill — no real testnet order was placed</div>
+                {txResult.simulatedReason && (
+                  <div className="text-xs mt-0.5" style={{ color: "var(--t-2)" }}>{txResult.simulatedReason}</div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Tx hash */}
           <div className="glass" style={{ padding: "20px" }}>
@@ -500,18 +546,52 @@ export default function BuilderPage() {
                   <span className="text-xs font-mono" style={{ color: "var(--cyan)" }}>
                     ${leg.usdAmount.toFixed(0)}
                   </span>
-                  <span className="badge badge-green" style={{ fontSize: "9px" }}>filled</span>
+                  {txResult.simulated
+                    ? <span className="badge badge-amber" style={{ fontSize: "9px" }}>simulated</span>
+                    : <span className="badge badge-green" style={{ fontSize: "9px" }}>filled</span>}
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Publish identity prompt */}
+          {needsName && (
+            <div className="glass" style={{ padding: "16px" }}>
+              <div className="label-caps mb-2">Publishing as</div>
+              <div className="flex gap-2">
+                <input
+                  className="field flex-1"
+                  placeholder="Display name (optional)"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                />
+                <button onClick={confirmNameAndPublish} className="btn btn-cyan px-4 py-2 text-sm">
+                  Continue
+                </button>
+              </div>
+              <p className="text-xs mt-2" style={{ color: "var(--t-3)" }}>
+                No wallet needed yet — this is a lightweight handle so your published theses can be attributed to you on the Ledger.
+              </p>
+            </div>
+          )}
+
+          {/* Hash-anchoring proof */}
+          {canonicalHash && (
+            <div className="glass-inset p-3 flex items-center gap-3">
+              <Shield size={13} style={{ color: "var(--t-3)", flexShrink: 0 }} />
+              <span className="text-xs" style={{ color: "var(--t-3)" }}>Canonical hash</span>
+              <span className="font-mono text-xs flex-1 truncate" style={{ color: "var(--cyan)" }}>
+                {canonicalHash}
+              </span>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
             <a href="/app/portfolio" className="btn btn-cyan px-6 py-2.5 text-sm">
               <BarChart3 size={15} /> View Portfolio
             </a>
-            <button onClick={publishIndex} disabled={isPublishing || published}
+            <button onClick={startPublish} disabled={isPublishing || published || !thesisId}
               className="btn btn-outline flex-1 py-2.5 text-sm disabled:opacity-50"
               style={{ justifyContent: "center" }}>
               {published
@@ -520,8 +600,16 @@ export default function BuilderPage() {
                 ? <><Loader2 size={15} className="spin-ring" /> Publishing...</>
                 : <><Globe size={15} /> Publish to Marketplace</>}
             </button>
-            <button onClick={() => { setStep("input"); setThesis(""); setProposal(null); setTxResult(null); setDataSource(null); setPublished(false); }}
-              className="btn btn-outline px-6 py-2.5 text-sm">
+            {published && (
+              <Link href="/app/ledger" className="btn btn-outline px-6 py-2.5 text-sm">
+                <Shield size={15} /> View on Ledger
+              </Link>
+            )}
+            <button onClick={() => {
+              setStep("input"); setThesis(""); setProposal(null); setTxResult(null);
+              setDataSource(null); setPublished(false); setThesisId(null); setCanonicalHash(null);
+              setNeedsName(false);
+            }} className="btn btn-outline px-6 py-2.5 text-sm">
               Build Another
             </button>
           </div>

@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { getNewsList, getBTCETFSummary, getSSIIndexes } from "@/lib/sosovalue";
+import { ethers } from "ethers";
+import {
+  getNewsListWithMeta,
+  getBTCETFSummaryWithMeta,
+  getSSIIndexesWithMeta,
+} from "@/lib/sosovalue";
 import { IndexProposal, IndexToken } from "@/lib/types";
+import { TOKEN_UNIVERSE } from "@/lib/token-universe";
+import { db } from "@/lib/db/client";
+import { theses } from "@/lib/db/schema";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -13,12 +21,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Thesis too short" }, { status: 400 });
     }
 
-    // Fetch live context from SoSoValue
-    const [news, etfData, ssiIndexes] = await Promise.all([
-      getNewsList(undefined, 12),
-      getBTCETFSummary(),
-      getSSIIndexes(),
+    // Fetch live context from SoSoValue — each call reports whether it
+    // actually reached the live API or silently fell back to mock data, so
+    // the "LIVE DATA" badge reflects reality instead of just env-key presence.
+    const [newsResult, etfResult, ssiResult] = await Promise.all([
+      getNewsListWithMeta(undefined, 12),
+      getBTCETFSummaryWithMeta(),
+      getSSIIndexesWithMeta(),
     ]);
+    const news = newsResult.data;
+    const etfData = etfResult.data;
+    const ssiIndexes = ssiResult.data;
+    const live = newsResult.live && etfResult.live && ssiResult.live;
 
     const etfContext = etfData[0]
       ? `Latest BTC ETF net inflow: $${(etfData[0].totalNetInflow / 1e6).toFixed(0)}M. Total AUM: $${(etfData[0].totalNetAssets / 1e9).toFixed(1)}B.`
@@ -36,7 +50,7 @@ export async function POST(req: NextRequest) {
     const systemPrompt = `You are ATLAS, an AI index construction engine. You build thematic crypto token baskets using institutional market data.
 
 Available token universe (you MUST only use these):
-BTC, ETH, SOL, BNB, ARB, OP, LINK, AAVE, UNI, COMP, SNX, MKR, INJ, DYDX, GMX, RENDER, TAO, FET, OCEAN, WLD, NEAR, DOT, AVAX, ATOM, TIA, MATIC, LDO, RPL, PENDLE, STX, ICP, BLUR, MAGIC, APT, SUI, SEI, PYTH, JTO, MANTA, ALT
+${TOKEN_UNIVERSE.join(", ")}
 
 Sectors: DeFi, Layer1, Layer2, AI, RWA, GameFi, Infrastructure, Privacy, Meme, Stablecoin
 
@@ -113,9 +127,10 @@ Construct the optimal thematic index basket based on this thesis and data.`;
     if (!jsonMatch) throw new Error("No JSON in response");
 
     const parsed = JSON.parse(jsonMatch[0]);
+    const createdAt = Date.now();
 
     const proposal: IndexProposal = {
-      id: `idx_${Date.now()}`,
+      id: crypto.randomUUID(),
       name: parsed.name,
       description: parsed.description,
       thesis,
@@ -123,16 +138,46 @@ Construct the optimal thematic index basket based on this thesis and data.`;
       totalValue: investAmount,
       expectedReturn: parsed.expectedReturn,
       riskLevel: parsed.riskLevel,
-      createdAt: Date.now(),
+      createdAt,
       rebalanceFrequency: parsed.rebalanceFrequency,
       aiConfidence: parsed.aiConfidence,
       dataSignals: parsed.dataSignals,
     };
 
-    const key = process.env.SOSOVALUE_API_KEY ?? "";
-    const dataSource = key.length > 10 && !key.includes("your_") ? "live" : "mock";
+    // Hash the full input+output snapshot now, at the moment the AI's output
+    // is first persisted — not later at publish time, when a client could
+    // have tampered with the JSON in transit. This is what makes the hash a
+    // provable record of what the model actually generated.
+    const inputSnapshot = { newsContext, etfContext, ssiContext, systemPrompt, userPrompt };
+    const canonicalSnapshot = {
+      inputSnapshot,
+      rawAiOutput: parsed,
+      proposal,
+      predictedReturn: proposal.expectedReturn,
+      createdAt,
+    };
+    const canonicalHash = ethers.keccak256(
+      ethers.toUtf8Bytes(JSON.stringify(canonicalSnapshot))
+    );
 
-    return NextResponse.json({ proposal, dataSource });
+    await db.insert(theses).values({
+      id: proposal.id,
+      creatorHandle: "unclaimed", // overwritten with the real handle on publish
+      thesisText: thesis,
+      riskLevel: proposal.riskLevel,
+      investAmount: String(investAmount),
+      inputSnapshot,
+      rawAiOutput: parsed,
+      proposal,
+      predictedReturn: proposal.expectedReturn,
+      dataSourceLive: live,
+      canonicalHash,
+      status: "draft",
+    });
+
+    const dataSource = live ? "live" : "mock";
+
+    return NextResponse.json({ proposal, thesisId: proposal.id, dataSource, canonicalHash });
   } catch (err) {
     console.error("[build-index]", err);
     return NextResponse.json(
