@@ -114,15 +114,9 @@ export default function LandingPage() {
           <span className="text-sm font-black tracking-widest" style={{ color: "var(--t-1)", letterSpacing: "0.15em" }}>ATLAS</span>
         </Link>
 
-        {/* Center links */}
-        <div className="hidden md:flex items-center gap-8">
-          {["Protocol", "Indexes", "Signals", "Docs"].map((l) => (
-            <a key={l} href="#" className="text-xs font-semibold tracking-wider uppercase transition-colors"
-              style={{ color: "var(--t-3)", letterSpacing: "0.08em", textDecoration: "none" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "var(--t-2)")}
-              onMouseLeave={e => (e.currentTarget.style.color = "var(--t-3)")}>{l}</a>
-          ))}
-        </div>
+        {/* Center links — Protocol/Indexes/Signals/Docs removed, they had no
+            real destination (href="#"). Signals has a real page at
+            /app/signals if this ever gets relinked. */}
 
         {/* Right actions */}
         <div className="flex items-center gap-3">
@@ -247,9 +241,9 @@ export default function LandingPage() {
                       Ready to execute · Est. +14.8% (30d) · 8 tokens · Low risk
                     </span>
                   </div>
-                  <div className="btn btn-cyan px-4 py-2 text-xs" style={{ fontSize: 11 }}>
+                  <Link href="/app/builder" className="btn btn-cyan px-4 py-2 text-xs" style={{ fontSize: 11 }}>
                     Execute via SoDEX
-                  </div>
+                  </Link>
                 </div>
               </div>
             </div>

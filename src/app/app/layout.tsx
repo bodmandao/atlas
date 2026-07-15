@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Brain, Globe, BarChart3, Settings,
-  Target, ChevronRight, Bell, Wallet, TrendingUp, ShieldCheck
+  Target, ChevronRight, Bell, TrendingUp, ShieldCheck
 } from "lucide-react";
 import Ticker from "@/components/ui/Ticker";
+import WalletConnect from "@/components/WalletConnect";
 
 const NAV_ITEMS = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
@@ -58,10 +59,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             <Bell size={15} />
           </button>
-          <button className="btn btn-cyan px-4 py-1.5 text-sm">
-            <Wallet size={14} />
-            Connect
-          </button>
+          <WalletConnect />
         </div>
       </header>
 

@@ -12,6 +12,7 @@ import { formatPercent } from "@/lib/utils";
 import { BacktestChart } from "@/components/BacktestChart";
 import { RadarChart } from "@/components/RadarChart";
 import { getOrCreateCreatorHandle, getCreatorName, setCreatorName } from "@/lib/creator-identity";
+import { getSession as getWalletSession } from "@/lib/wallet";
 
 const THESIS_EXAMPLES = [
   "AI infrastructure tokens with strong institutional ETF inflows and positive momentum",
@@ -157,12 +158,17 @@ export default function BuilderPage() {
     if (!thesisId || isPublishing || published) return;
     setIsPublishing(true);
     try {
+      // A connected, verified wallet address is a strictly better identity
+      // than the anonymous localStorage handle — prefer it when available,
+      // but publishing was never gated on having a wallet connected and
+      // still isn't.
+      const walletSession = await getWalletSession();
       const res = await fetch("/api/publish-index", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           thesisId,
-          creatorHandle: getOrCreateCreatorHandle(),
+          creatorHandle: walletSession?.address ?? getOrCreateCreatorHandle(),
           creatorName: getCreatorName(),
         }),
       });

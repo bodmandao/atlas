@@ -106,6 +106,20 @@ function parseEtfContext(etfContext: string): { netInflow: number | null; totalA
   return { netInflow: Number(m[1]), totalAum: Number(m[2]) };
 }
 
+// The model reads "$78.0B" from the context and may reasonably echo that
+// claim as 78, 78000 (thousands), or 78000000000 (raw dollars) — the tool
+// schema can suggest a unit, but trusting the model to always pick the same
+// one as the internal parser is exactly the kind of ambiguity that produces
+// a false "doesn't match" on a citation that was actually correct. Instead
+// of guessing which unit the model used, accept a match at any plausible
+// scale.
+function matchesAtAnyScale(claimed: number, actual: number, relTolerance: number, absTolerance: number): boolean {
+  return [1, 1e3, 1e6, 1e9].some((scale) => {
+    const scaledActual = actual * scale;
+    return Math.abs(claimed - scaledActual) <= Math.abs(scaledActual) * relTolerance + absTolerance;
+  });
+}
+
 interface CitedFigureInput {
   tokenSymbol: string;
   category: "ssi_change" | "etf_flow" | "news_reference";
@@ -149,9 +163,7 @@ function verifyCitedFigure(input: CitedFigureInput, snapshot: InputSnapshot) {
       return { found: false, actualValue: null, actualDirection: null, withinTolerance: false, note: "No ETF flow data in the build-time snapshot" };
     }
     const withinTolerance =
-      input.claimedValue === null
-        ? true
-        : Math.abs(input.claimedValue - actual) <= Math.abs(actual) * 0.1 + 0.01;
+      input.claimedValue === null ? true : matchesAtAnyScale(input.claimedValue, actual, 0.1, 0.01);
     return {
       found: true,
       actualValue: actual,
@@ -212,7 +224,7 @@ const TOOLS: Anthropic.Tool[] = [
           description:
             "For ssi_change: the SSI index name/code the rationale references (e.g. 'AI', 'ssiAI'). For etf_flow: 'netInflow' or 'totalAum'. For news_reference: a short keyword/phrase from the claimed headline.",
         },
-        claimedValue: { type: ["number", "null"], description: "The numeric value asserted (percent or $ amount). null for news_reference." },
+        claimedValue: { type: ["number", "null"], description: "The numeric value asserted, in whatever unit the rationale actually stated it in (e.g. 78 for '$78.0B', not 78000000000) — exact unit doesn't need to match any convention, the check tolerates any consistent scale. null for news_reference." },
         claimedDirection: { type: "string", enum: ["up", "down", "flat", "unknown"] },
         rawClaimText: { type: "string", description: "The literal sentence/fragment from the rationale being checked" },
       },
