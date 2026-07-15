@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Brain, Globe, BarChart3, Settings,
-  Target, ChevronRight, Bell, Wallet, TrendingUp
+  Target, ChevronRight, Bell, Wallet, TrendingUp, ShieldCheck
 } from "lucide-react";
 import Ticker from "@/components/ui/Ticker";
 
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/app/builder", label: "Index Builder", icon: Brain },
   { href: "/app/portfolio", label: "My Portfolio", icon: BarChart3 },
   { href: "/app/marketplace", label: "Marketplace", icon: Globe },
+  { href: "/app/ledger", label: "Ledger", icon: ShieldCheck },
   { href: "/app/signals", label: "Signals", icon: TrendingUp },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];
