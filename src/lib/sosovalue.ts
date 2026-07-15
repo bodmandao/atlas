@@ -85,14 +85,17 @@ async function apiRequest<T>(path: string, params?: Record<string, string>): Pro
 
 // ── News ────────────────────────────────────────────────────────────────────
 
-export async function getNewsList(category?: string, limit = 20): Promise<NewsItem[]> {
+export async function getNewsListWithMeta(
+  category?: string,
+  limit = 20
+): Promise<{ data: NewsItem[]; live: boolean }> {
   try {
     const raw = await apiRequest<Record<string, unknown>[]>("/news", {
       ...(category ? { category } : {}),
       page_size: String(limit),
       page: "1",
     });
-    return raw.map((n) => ({
+    const data = raw.map((n) => ({
       newsId:      String(n.id ?? ""),
       title:       String(n.title ?? n.content ?? "").slice(0, 120),
       summary:     String(n.content ?? n.summary ?? "").slice(0, 300),
@@ -101,31 +104,41 @@ export async function getNewsList(category?: string, limit = 20): Promise<NewsIt
                    Array.isArray(n.categories) ? n.categories as string[] : [],
       url:         String(n.source_link ?? n.original_link ?? n.url ?? "#"),
     }));
+    return { data, live: true };
   } catch (err) {
     console.warn("[SoSoValue] getNewsList failed — using mock:", String(err));
-    return getMockNews();
+    return { data: getMockNews(), live: false };
   }
+}
+
+export async function getNewsList(category?: string, limit = 20): Promise<NewsItem[]> {
+  return (await getNewsListWithMeta(category, limit)).data;
 }
 
 // ── ETF ─────────────────────────────────────────────────────────────────────
 
-export async function getBTCETFSummary(): Promise<ETFSummary[]> {
+export async function getBTCETFSummaryWithMeta(): Promise<{ data: ETFSummary[]; live: boolean }> {
   try {
     const raw = await apiRequest<Record<string, unknown>[]>("/etfs/summary-history", {
       symbol: "BTC",
       country_code: "US",
       limit: "30",
     });
-    return raw.map((d) => ({
+    const data = raw.map((d) => ({
       date:            String(d.date ?? d.stat_date ?? ""),
       totalNetInflow:  Number(d.total_net_inflow  ?? d.totalNetInflow  ?? 0),
       totalNetAssets:  Number(d.total_net_assets  ?? d.totalNetAssets  ?? 0),
       btcHolding:      Number(d.btc_holding       ?? d.btcHolding      ?? 0),
     }));
+    return { data, live: true };
   } catch (err) {
     console.warn("[SoSoValue] getBTCETFSummary failed — using mock:", String(err));
-    return getMockETFData();
+    return { data: getMockETFData(), live: false };
   }
+}
+
+export async function getBTCETFSummary(): Promise<ETFSummary[]> {
+  return (await getBTCETFSummaryWithMeta()).data;
 }
 
 // ── SSI Indices ──────────────────────────────────────────────────────────────
@@ -140,7 +153,7 @@ const SSI_DISPLAY: Record<string, string> = {
   ssiRWA:    "SSI RWA Index",
 };
 
-export async function getSSIIndexes(): Promise<SSIIndex[]> {
+export async function getSSIIndexesWithMeta(): Promise<{ data: SSIIndex[]; live: boolean }> {
   try {
     const results = await Promise.all(
       SSI_TICKERS.map(async (ticker) => {
@@ -172,19 +185,25 @@ export async function getSSIIndexes(): Promise<SSIIndex[]> {
     const valid = results.filter(Boolean) as SSIIndex[];
     if (valid.length === 0) throw new Error("all snapshots failed");
     console.log(`[SoSoValue] getSSIIndexes ✓ ${valid.length} indexes, tokens sample:`, valid[0]?.tokens?.slice(0, 3));
-    return valid;
+    return { data: valid, live: true };
   } catch (err) {
     console.warn("[SoSoValue] getSSIIndexes failed — using mock:", String(err));
-    return getMockSSI();
+    return { data: getMockSSI(), live: false };
   }
+}
+
+export async function getSSIIndexes(): Promise<SSIIndex[]> {
+  return (await getSSIIndexesWithMeta()).data;
 }
 
 // ── Market data ──────────────────────────────────────────────────────────────
 
-export async function getMarketData(symbols: string[]): Promise<MarketData[]> {
+export async function getMarketDataWithMeta(
+  symbols: string[]
+): Promise<{ data: MarketData[]; live: boolean }> {
   try {
     const results = await Promise.all(
-      symbols.slice(0, 5).map((sym) =>
+      symbols.map((sym) =>
         apiRequest<Record<string, unknown>>(`/currencies/${sym}/market-snapshot`)
           .then((d) => ({
             currencyCode:         sym,
@@ -196,13 +215,23 @@ export async function getMarketData(symbols: string[]): Promise<MarketData[]> {
           .catch(() => null)
       )
     );
+    // Per-symbol failures (rate limits, one-off timeouts) are dropped, not
+    // mocked — a missing symbol just means no price_history row for it today,
+    // which checkpoint resolution already treats honestly as insufficient
+    // data. Only total failure falls back to mock, and callers that persist
+    // this data (the price-history pipeline) must know that happened so they
+    // don't write fabricated prices into what's supposed to be a real record.
     const valid = results.filter(Boolean) as MarketData[];
     if (valid.length === 0) throw new Error("all symbols failed");
-    return valid;
+    return { data: valid, live: true };
   } catch (err) {
     console.warn("[SoSoValue] getMarketData failed — using mock:", String(err));
-    return getMockMarketData(symbols);
+    return { data: getMockMarketData(symbols), live: false };
   }
+}
+
+export async function getMarketData(symbols: string[]): Promise<MarketData[]> {
+  return (await getMarketDataWithMeta(symbols)).data;
 }
 
 // ── Mock fallbacks ──────────────────────────────────────────────────────────
