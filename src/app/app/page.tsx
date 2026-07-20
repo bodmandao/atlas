@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getNewsList, getBTCETFSummary, getSSIIndexes } from "@/lib/sosovalue";
+import { getNewsListWithMeta, getBTCETFSummaryWithMeta, getSSIIndexesWithMeta } from "@/lib/sosovalue";
 import { formatPercent } from "@/lib/utils";
 import {
   Brain, ArrowRight, TrendingUp, TrendingDown,
@@ -9,11 +9,14 @@ import {
 export const revalidate = 120;
 
 export default async function DashboardPage() {
-  const [news, etfData, ssiIndexes] = await Promise.all([
-    getNewsList(undefined, 8),
-    getBTCETFSummary(),
-    getSSIIndexes(),
+  const [newsResult, etfResult, ssiResult] = await Promise.all([
+    getNewsListWithMeta(undefined, 8),
+    getBTCETFSummaryWithMeta(),
+    getSSIIndexesWithMeta(),
   ]);
+  const news = newsResult.data;
+  const etfData = etfResult.data;
+  const ssiIndexes = ssiResult.data;
 
   const latest = etfData[0];
   const prev = etfData[1];
@@ -21,8 +24,9 @@ export default async function DashboardPage() {
     ? ((latest.totalNetInflow - prev.totalNetInflow) / Math.abs(prev.totalNetInflow || 1)) * 100
     : 0;
 
-  const sosoKey = process.env.SOSOVALUE_API_KEY ?? "";
-  const dataSource = sosoKey.length > 10 && !sosoKey.includes("your_") ? "live" : "mock";
+  // SoSoValue call under a rate limit shouldn't flip this to DEMO MODE.
+  const liveCount = [newsResult.live, etfResult.live, ssiResult.live].filter(Boolean).length;
+  const dataSource = liveCount >= 2 ? "live" : "mock";
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">

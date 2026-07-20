@@ -32,7 +32,11 @@ export async function POST(req: NextRequest) {
     const news = newsResult.data;
     const etfData = etfResult.data;
     const ssiIndexes = ssiResult.data;
-    const live = newsResult.live && etfResult.live && ssiResult.live;
+    // A single throttled SoSoValue call (rate limits hit under bursty
+    // traffic) shouldn't force the whole basket into mock — require most,
+    // not all, of the sources to be live.
+    const liveCount = [newsResult.live, etfResult.live, ssiResult.live].filter(Boolean).length;
+    const live = liveCount >= 2;
 
     const etfContext = etfData[0]
       ? `Latest BTC ETF net inflow: $${(etfData[0].totalNetInflow / 1e6).toFixed(0)}M. Total AUM: $${(etfData[0].totalNetAssets / 1e9).toFixed(1)}B.`

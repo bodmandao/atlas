@@ -38,6 +38,23 @@ export interface SSIIndex {
   description?: string;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += limit) {
+    const batch = await Promise.all(items.slice(i, i + limit).map(fn));
+    results.push(...batch);
+  }
+  return results;
+}
+
 async function apiRequest<T>(path: string, params?: Record<string, string>): Promise<T> {
   const apiKey = process.env.SOSOVALUE_API_KEY;
   const url    = new URL(`${BASE_URL}${path}`);
@@ -47,40 +64,54 @@ async function apiRequest<T>(path: string, params?: Record<string, string>): Pro
   console.log(`${label} → ${url.toString()}`);
   console.log(`${label}   key: ${apiKey ? apiKey.slice(0, 12) + "…" : "MISSING"}`);
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      "x-soso-api-key": apiKey ?? "",
-      "Content-Type": "application/json",
-    },
-    next: { revalidate: 60 },
-  });
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await fetch(url.toString(), {
+      headers: {
+        "x-soso-api-key": apiKey ?? "",
+        "Content-Type": "application/json",
+      },
+      next: { revalidate: 60 },
+    });
 
-  const text = await res.text();
-  console.log(`${label}   status: ${res.status}`);
-  console.log(`${label}   body:   ${text.slice(0, 400)}`);
+    const text = await res.text();
+    console.log(`${label}   status: ${res.status}${attempt > 1 ? ` (attempt ${attempt})` : ""}`);
+    console.log(`${label}   body:   ${text.slice(0, 400)}`);
 
-  if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText} — ${text.slice(0, 200)}`);
+    // SoSoValue rate limits bursts — back off and retry rather than
+    // immediately falling back to mock data on a transient 429.
+    if (res.status === 429 && attempt < maxAttempts) {
+      const backoffMs = 400 * attempt;
+      console.warn(`${label}   429 rate limited — retrying in ${backoffMs}ms`);
+      await sleep(backoffMs);
+      continue;
+    }
+
+    if (!res.ok) {
+      throw new Error(`${res.status} ${res.statusText} — ${text.slice(0, 200)}`);
+    }
+
+    const json = JSON.parse(text);
+
+    if (json.code !== 0 && json.code !== undefined) {
+      throw new Error(`API error ${json.code}: ${json.message}`);
+    }
+
+    // Paginated response: { data: { list: [...] } }
+    if (json.data?.list !== undefined) {
+      const count = json.data.list.length;
+      console.log(`${label}   ✓ parsed: ${count} items (paginated)`);
+      return json.data.list as T;
+    }
+
+    // Plain data
+    const data  = json.data ?? json;
+    const count = Array.isArray(data) ? `${data.length} items` : "object";
+    console.log(`${label}   ✓ parsed: ${count}`);
+    return data as T;
   }
 
-  const json = JSON.parse(text);
-
-  if (json.code !== 0 && json.code !== undefined) {
-    throw new Error(`API error ${json.code}: ${json.message}`);
-  }
-
-  // Paginated response: { data: { list: [...] } }
-  if (json.data?.list !== undefined) {
-    const count = json.data.list.length;
-    console.log(`${label}   ✓ parsed: ${count} items (paginated)`);
-    return json.data.list as T;
-  }
-
-  // Plain data
-  const data  = json.data ?? json;
-  const count = Array.isArray(data) ? `${data.length} items` : "object";
-  console.log(`${label}   ✓ parsed: ${count}`);
-  return data as T;
+  throw new Error("unreachable");
 }
 
 // ── News ────────────────────────────────────────────────────────────────────
@@ -115,7 +146,6 @@ export async function getNewsList(category?: string, limit = 20): Promise<NewsIt
   return (await getNewsListWithMeta(category, limit)).data;
 }
 
-// ── ETF ─────────────────────────────────────────────────────────────────────
 
 export async function getBTCETFSummaryWithMeta(): Promise<{ data: ETFSummary[]; live: boolean }> {
   try {
@@ -141,7 +171,6 @@ export async function getBTCETFSummary(): Promise<ETFSummary[]> {
   return (await getBTCETFSummaryWithMeta()).data;
 }
 
-// ── SSI Indices ──────────────────────────────────────────────────────────────
 
 const SSI_TICKERS = ["ssiDeFi", "ssiAI", "ssiLayer1", "ssiLayer2", "ssiRWA"];
 
@@ -155,8 +184,7 @@ const SSI_DISPLAY: Record<string, string> = {
 
 export async function getSSIIndexesWithMeta(): Promise<{ data: SSIIndex[]; live: boolean }> {
   try {
-    const results = await Promise.all(
-      SSI_TICKERS.map(async (ticker) => {
+    const results = await mapWithConcurrency(SSI_TICKERS, 2, async (ticker) => {
         const [snap, constituents] = await Promise.all([
           apiRequest<Record<string, unknown>>(`/indices/${ticker}/market-snapshot`).catch(() => null),
           apiRequest<Record<string, unknown>[]>(`/indices/${ticker}/constituents`).catch(() => [] as Record<string, unknown>[]),
@@ -179,8 +207,7 @@ export async function getSSIIndexesWithMeta(): Promise<{ data: SSIIndex[]; live:
           weights,
           description:   "",
         };
-      })
-    );
+    });
 
     const valid = results.filter(Boolean) as SSIIndex[];
     if (valid.length === 0) throw new Error("all snapshots failed");
